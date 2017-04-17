@@ -1,0 +1,241 @@
+
+import os
+import pandas as pd
+import random
+import ml_metrics as metrics
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.cross_validation import KFold
+from sklearn import cross_validation
+from itertools import chain
+import operator
+
+# set file path
+pathProg = 'C:\\Users\\user\\Desktop\\蔡勁家\\課程\\大四下\\數據科學與大數據分析'
+os.chdir(pathProg)
+
+destinations = pd.read_csv("destinations.csv")
+test = pd.read_csv("test.csv")
+train = pd.read_csv("train.csv")
+
+# create a set of all the unique user ids for test and train
+test_ids = set(test.user_id.unique())
+train_ids = set(train.user_id.unique())
+# figure out how many test user ids are in the train user ids
+intersection_count = len(test_ids & train_ids)
+# see if the count matches the total number of test user ids
+# the output is true
+intersection_count == len(test_ids)
+
+# convert the date_time column in train from an object to a datetime value
+train["date_time"] = pd.to_datetime(train["date_time"])
+# extract the year and month from from date_time and assign them to their own columns
+train["year"] = train["date_time"].dt.year
+train["month"] = train["date_time"].dt.month
+
+# selecting a certain number of users randomly
+unique_users = train.user_id.unique()
+sel_user_ids = [unique_users[i] for i in sorted(random.sample(range(len(unique_users)), 10000)) ]
+# pick rows from train where user_id is in the random sample of user ids
+sel_train = train[train.user_id.isin(sel_user_ids)]
+
+# pick new training and testing sets from sel_train
+t1 = sel_train[((sel_train.year == 2013) | ((sel_train.year == 2014) & (sel_train.month < 8)))]
+t2 = sel_train[((sel_train.year == 2014) & (sel_train.month >= 8))]
+
+# sample t2 to only contain bookings
+t2 = t2[t2.is_booking == True]
+
+# find the most common clusters across the data, use as predictions
+most_common_clusters = list(train.hotel_cluster.value_counts().head().index)
+
+# turn most_common_clusters into a list of predictions by making the same prediction for each row
+predictions = [most_common_clusters for i in range(t2.shape[0])]
+
+# compute error metric
+target = [[l] for l in t2["hotel_cluster"]]
+metrics.mapk(target, predictions, k=5)
+
+# find linear correlations in the training set
+train.corr()["hotel_cluster"]
+
+# initialize a PCA model using scikit-learn
+# transform the columns d1-d149 into 3 columns
+pca = PCA(n_components=3)
+dest_small = pca.fit_transform(destinations[["d{0}".format(i + 1) for i in range(149)]])
+dest_small = pd.DataFrame(dest_small)
+dest_small["srch_destination_id"] = destinations["srch_destination_id"]
+
+
+# generate new date features based on date_time, srch_ci, and srch_co
+# remove non-numeric columns
+# add in features from dest_small
+# replace any missing values with -1
+def calc_fast_features(df):
+    df["date_time"] = pd.to_datetime(df["date_time"])
+    df["srch_ci"] = pd.to_datetime(df["srch_ci"], format='%Y-%m-%d', errors="coerce")
+    df["srch_co"] = pd.to_datetime(df["srch_co"], format='%Y-%m-%d', errors="coerce")
+    
+    props = {}
+    for prop in ["month", "day", "hour", "minute", "dayofweek", "quarter"]:
+        props[prop] = getattr(df["date_time"].dt, prop)
+    
+    carryover = [p for p in df.columns if p not in ["date_time", "srch_ci", "srch_co"]]
+    for prop in carryover:
+        props[prop] = df[prop]
+    
+    date_props = ["month", "day", "dayofweek", "quarter"]
+    for prop in date_props:
+        props["ci_{0}".format(prop)] = getattr(df["srch_ci"].dt, prop)
+        props["co_{0}".format(prop)] = getattr(df["srch_co"].dt, prop)
+    props["stay_span"] = (df["srch_co"] - df["srch_ci"]).astype('timedelta64[h]')
+        
+    ret = pd.DataFrame(props)
+    
+    ret = ret.join(dest_small, on="srch_destination_id", how='left', rsuffix="dest")
+    ret = ret.drop("srch_destination_iddest", axis=1)
+    return ret
+
+df = calc_fast_features(t1)
+df.fillna(-1, inplace=True)
+
+
+# initialize the model and compute cross validation scores
+predictors = [c for c in df.columns if c not in ["hotel_cluster"]]
+
+clf = RandomForestClassifier(n_estimators=10, min_weight_fraction_leaf=0.1)
+scores = cross_validation.cross_val_score(clf, df[predictors], df['hotel_cluster'], cv=3)
+scores
+
+
+# loop across each unique hotel_cluster
+# train a Random Forest classifier using 2-fold cross validation
+# extract the probabilities from the classifier that the row is in the unique hotel_cluster
+# combine all the probabilities
+# for each row, find the 5 largest probabilities, and assign those hotel_cluster values as predictions
+# compute accuracy using mapk
+all_probs = []
+unique_clusters = df["hotel_cluster"].unique()
+for cluster in unique_clusters:
+    df["target"] = 1
+    df["target"][df["hotel_cluster"] != cluster] = 0
+    predictors = [col for col in df if col not in ['hotel_cluster', "target"]]
+    probs = []
+    cv = KFold(len(df["target"]), n_folds=2)
+    clf = RandomForestClassifier(n_estimators=10, min_weight_fraction_leaf=0.1)
+    for i, (tr, te) in enumerate(cv):
+        clf.fit(df[predictors].iloc[tr], df["target"].iloc[tr])
+        preds = clf.predict_proba(df[predictors].iloc[te])
+        probs.append([p[1] for p in preds])
+    full_probs = chain.from_iterable(probs)
+    all_probs.append(list(full_probs))
+
+prediction_frame = pd.DataFrame(all_probs).T
+prediction_frame.columns = unique_clusters
+def find_top_5(row):
+    return list(row.nlargest(5).index)
+
+preds = []
+for index, row in prediction_frame.iterrows():
+    preds.append(find_top_5(row))
+
+metrics.mapk([[l] for l in t2.iloc["hotel_cluster"]], preds, k=5)
+
+
+# group t1 by srch_destination_id, and hotel_cluster
+# iterate through each group
+# assign 1 point to each hotel cluster where is_booking is True
+# assign .15 points to each hotel cluster where is_booking is False
+# assign the score to the srch_destination_id / hotel_cluster combination in a dictionary
+def make_key(items):
+    return "_".join([str(i) for i in items])
+
+match_cols = ["srch_destination_id"]
+cluster_cols = match_cols + ['hotel_cluster']
+groups = t1.groupby(cluster_cols)
+top_clusters = {}
+for name, group in groups:
+    clicks = len(group.is_booking[group.is_booking == False])
+    bookings = len(group.is_booking[group.is_booking == True])
+    
+    score = bookings + .15 * clicks
+    
+    clus_name = make_key(name[:len(match_cols)])
+    if clus_name not in top_clusters:
+        top_clusters[clus_name] = {}
+    top_clusters[clus_name][name[-1]] = score
+
+
+# loop through each key in top_clusters
+# find the top 5 clusters for that key
+# assign the top 5 clusters to a new dictionary, cluster_dict
+cluster_dict = {}
+for n in top_clusters:
+    tc = top_clusters[n]
+    top = [l[0] for l in sorted(tc.items(), key=operator.itemgetter(1), reverse=True)[:5]]
+    cluster_dict[n] = top
+
+# iterate through each row in t2
+# extract the srch_destination_id for the row
+# find the top clusters for that destination id
+# append the top clusters to preds
+preds = []
+for index, row in t2.iterrows():
+    key = make_key([row[m] for m in match_cols])
+    if key in cluster_dict:
+        preds.append(cluster_dict[key])
+    else:
+        preds.append([])
+
+# compute the accuracy using mapk function
+metrics.mapk([[l] for l in t2["hotel_cluster"]], preds, k=5)
+
+
+# split the training data into groups based on the match columns
+# loop through the testing data
+# create an index based on the match columns
+# get any matches between the testing data and the training data using the groups
+match_cols = ['user_location_country', 'user_location_region', 'user_location_city', 'hotel_market', 'orig_destination_distance']
+
+groups = t1.groupby(match_cols)
+    
+def generate_exact_matches(row, match_cols):
+    index = tuple([row[t] for t in match_cols])
+    try:
+        group = groups.get_group(index)
+    except Exception:
+        return []
+    clus = list(set(group.hotel_cluster))
+    return clus
+
+exact_matches = []
+for i in range(t2.shape[0]):
+    exact_matches.append(generate_exact_matches(t2.iloc[i], match_cols))
+
+
+# combine exact_matches, preds, and most_common_clusters
+# only take the unique predictions, in sequential order, using the f5 function from here
+# ensure we have a maximum of 5 predictions for each row in the testing set
+def f5(seq, idfun=None): 
+    if idfun is None:
+        def idfun(x): return x
+    seen = {}
+    result = []
+    for item in seq:
+        marker = idfun(item)
+        if marker in seen: continue
+        seen[marker] = 1
+        result.append(item)
+    return result
+    
+full_preds = [f5(exact_matches[p] + preds[p] + most_common_clusters)[:5] for p in range(len(preds))]
+mapk([[l] for l in t2["hotel_cluster"]], full_preds, k=5)
+
+
+# write the predictions to a file
+write_p = [" ".join([str(l) for l in p]) for p in full_preds]
+write_frame = ["{0},{1}".format(t2["id"][i], write_p[i]) for i in range(len(full_preds))]
+write_frame = ["id,hotel_clusters"] + write_frame
+with open("predictions.csv", "w+") as f:
+    f.write("\n".join(write_frame))
+
