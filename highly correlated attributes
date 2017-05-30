@@ -1,0 +1,35 @@
+## this is R code
+
+dat = read.csv("train.csv", header = T)
+
+# numeric variables
+numDat = dat[,-c(2,12,13,30,34,35,36,37,38,39,40,41,106,115,119,153)]
+
+target = dat$price_doc
+
+########## fill missing values ##########
+library(mice)
+mice.data = mice(numDat,
+                 m = 1,           # generate a filled dataset
+                 maxit = 2,       # max iteration
+                 method = "cart", # use CART decision tree to predict missing value
+                                  # can change method here(if you think CART decision tree is not appropriate)
+                 seed = 5)        # set.seed(), make every sampling the same
+datFilled = complete(mice.data, 1)
+datFilled = datFilled[,-94]
+
+########## remove redundant features ##########
+
+# ensure the results are repeatable
+set.seed(7)
+# load the library
+library(mlbench)
+library(caret)
+# calculate correlation matrix
+correlationMatrix = cor(datFilled[,1:275], use="pairwise.complete.obs")
+# summarize the correlation matrix
+print(correlationMatrix)
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated = findCorrelation(correlationMatrix, cutoff=0.8)
+# print indexes of highly correlated attributes
+print(highlyCorrelated)
