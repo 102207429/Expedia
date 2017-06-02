@@ -5,18 +5,18 @@ dat = read.csv("train.csv", header = T)
 # numeric variables
 numDat = dat[,-c(2,12,13,30,34,35,36,37,38,39,40,41,106,115,119,153)]
 
-target = dat$price_doc
-
 ########## fill missing values ##########
 library(mice)
 mice.data = mice(numDat,
                  m = 1,           # generate a filled dataset
                  maxit = 2,       # max iteration
                  method = "cart", # use CART decision tree to predict missing value
-                                  # can change method here(if you think CART decision tree is not appropriate)
                  seed = 5)        # set.seed(), make every sampling the same
 datFilled = complete(mice.data, 1)
 datFilled = datFilled[,-94]
+delete = which(is.na(datFilled)==TRUE, arr.ind = T)[,1]
+datFilled = datFilled[-delete,]
+target = datFilled$price_doc
 
 ########## remove redundant features ##########
 
@@ -33,3 +33,19 @@ print(correlationMatrix)
 highlyCorrelated = findCorrelation(correlationMatrix, cutoff=0.8)
 # print indexes of highly correlated attributes
 print(highlyCorrelated)
+
+datFilled = datFilled[,-highlyCorrelated]
+
+########## rank features by importance ##########
+
+set.seed(7)
+# prepare training scheme
+control = trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model = train(target ~ ., data=datFilled, method="rf", trControl=control)
+# estimate variable importance
+importance = varImp(model, scale=FALSE)
+# summarize importance
+print(importance)
+# plot importance
+plot(importance)
