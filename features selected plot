@@ -1,0 +1,139 @@
+
+## R code
+## draw each features which are selected against price
+
+setwd("C:/Users/user/Desktop/蔡勁家/課程/大四下/數據科學與大數據分析/Final Project")
+dat = read.csv("train.csv", header = T)
+datMacro = read.csv("macro.csv", header = T)
+merged = read.csv("merged.csv", header = T)
+
+# numeric variables
+numDat = dat[,-c(2,12,13,30,34:41,106,115,119,153)]
+numDat = numDat[,-94]
+numMarco = datMacro[,-c(1,80,83,84)]
+numMarco = numMarco[,-c(78,80)]
+numMerged = merged[,-c(2,12,13,30,34:41,107,115,119,153,370,373,374)]
+
+########## fill missing values ##########
+
+mean.data = numDat
+for(i in 1:ncol(numDat)){
+  mean.1 = mean(mean.data[, i], na.rm = T)  # mean of each column
+  na.rows = is.na(mean.data[, i])           # missing values for each column
+  mean.data[na.rows, i] = mean.1            # replace missing values with mean
+}
+
+mean.merge = numMerged
+for(i in 1:ncol(numMerged)){
+  mean.3 = mean(mean.merge[, i], na.rm = T)  # mean of each column
+  na.rows = is.na(mean.merge[, i])           # missing values for each column
+  mean.merge[na.rows, i] = mean.3            # replace missing values with mean
+}
+
+########## correlation > 0.2 & <-0.2 ##########
+
+price = mean.data[,275]
+corr = cor(mean.data, price)
+colnames(corr) = "correlation"
+high = which(as.numeric(corr) > 0.2)
+negHigh = which(as.numeric(corr) < -0.2)
+rownames(corr)[high]
+rownames(corr)[negHigh]
+
+price = mean.data[,275]
+corr = cor(mean.merge, price)
+colnames(corr) = "correlation"
+high = which(as.numeric(corr) > 0.2)
+negHigh = which(as.numeric(corr) < -0.2)
+rownames(corr)[high]
+rownames(corr)[negHigh]
+
+#####################################################################################
+
+# variables VS. price plot
+ggplot(aes(x=full_sq, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=num_room, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=sport_objects_raion, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=sport_count_1500, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=sport_count_2000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=sport_count_3000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=sport_count_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=office_sqm_2000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=office_sqm_3000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=office_sqm_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=office_count_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=trc_count_3000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=trc_count_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=trc_sqm_3000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=trc_sqm_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000_na_price, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000_price_500, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000_price_1000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000_price_1500, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000_price_2500, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000_price_4000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=cafe_count_5000_price_high, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=church_count_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=leisure_count_5000, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=ttk_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=sadovoe_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=bulvar_ring_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=kremlin_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=zd_vokzaly_avto_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=nuclear_reactor_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=thermal_power_plant_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=swim_pool_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=stadium_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=basketball_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=detention_facility_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=university_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=workplaces_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=office_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=theater_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=exhibition_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+ggplot(aes(x=catering_km, y=price_doc), data=dtrain) + 
+  geom_point(color='red')
+
+#####################################################################################
