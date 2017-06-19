@@ -1,0 +1,13 @@
+
+# list of variables which are high correlated to price
+highCorr = c(rownames(corr)[high], rownames(corr)[negHigh])
+highCorr
+
+# list of variables which are low correlated to price
+lowDat = mean.merge[,-c(high, negHigh)]
+lowCorr = names(lowDat)
+lowCorr
+# do pca of low correlated variables
+pca = prcomp(formula = ~ ., data = lowDat)
+pca$rotation    # original variables' influence on each PC (positive or negative)
+summary(pca)
